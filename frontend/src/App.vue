@@ -1,76 +1,55 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { state } from './state'
+import { computed, onMounted, onUnmounted } from 'vue'
+import AlertForm from './components/AlertForm.vue'
+import AlertList from './components/AlertList.vue'
+import { useBoardStore } from './stores/board'
 
-function loadRates() {
-  fetch('/api/rates')
-    .then((r) => r.json())
-    .then((data) => {
-      state.rates = data
-      state.lastUpdated = new Date().toLocaleTimeString()
-    })
-}
-
-function getUsdCad() {
-  for (let i = 0; i < state.rates.length; i++) {
-    if (state.rates[i].pair === 'USD/CAD') {
-      return state.rates[i].rate.toFixed(4)
-    }
-  }
-  return '...'
-}
-
-function getGbpUsd() {
-  for (let i = 0; i < state.rates.length; i++) {
-    if (state.rates[i].pair === 'GBP/USD') {
-      return state.rates[i].rate.toFixed(4)
-    }
-  }
-  return '...'
-}
-
-function getEurUsd() {
-  for (let i = 0; i < state.rates.length; i++) {
-    if (state.rates[i].pair === 'EUR/USD') {
-      return state.rates[i].rate.toFixed(4)
-    }
-  }
-  return '...'
-}
+const board = useBoardStore()
+const triggeredCount = computed(() => board.alerts.filter((alert) => alert.triggered).length)
+let refreshTimer: ReturnType<typeof setInterval>
 
 onMounted(() => {
-  loadRates()
+  void board.load()
+  refreshTimer = setInterval(() => void board.load(), 15_000)
+})
+
+onUnmounted(() => {
+  clearInterval(refreshTimer)
 })
 </script>
 
 <template>
   <main class="page">
+    <div v-if="triggeredCount > 0" class="trigger-banner" role="status">
+      {{ triggeredCount }} {{ triggeredCount === 1 ? 'alert is' : 'alerts are' }} triggered.
+    </div>
+
     <header class="header">
       <h1>Xe Rate Board</h1>
-      <span class="updated" v-if="state.lastUpdated">Last updated {{ state.lastUpdated }}</span>
+      <span v-if="board.lastUpdated" class="updated">Last updated {{ board.lastUpdated }}</span>
     </header>
 
+    <p v-if="board.ratesError" class="error-message" role="alert">{{ board.ratesError }}</p>
+    <p
+      v-if="board.alertsError && !board.alertsError.startsWith('Could not add')"
+      class="error-message"
+      role="alert"
+    >
+      {{ board.alertsError }}
+    </p>
+
     <section class="cards">
-      <div class="card">
-        <div class="pair">USD / CAD</div>
-        <div class="rate">{{ getUsdCad() }}</div>
-        <div class="caption">1 US dollar in Canadian dollars</div>
-      </div>
-
-      <div class="card">
-        <div class="pair">GBP / USD</div>
-        <div class="rate">{{ getGbpUsd() }}</div>
-        <div class="caption">1 British pound in US dollars</div>
-      </div>
-
-      <div class="card">
-        <div class="pair">EUR / USD</div>
-        <div class="rate">{{ getEurUsd() }}</div>
-        <div class="caption">1 euro in US dollars</div>
+      <div v-for="rate in board.rates" :key="rate.pair" class="card">
+        <div class="pair">{{ rate.pair.replace('/', ' / ') }}</div>
+        <div class="rate">{{ rate.rate.toFixed(4) }}</div>
+        <div class="caption">1 {{ rate.pair.split('/')[0] }} in {{ rate.pair.split('/')[1] }}</div>
       </div>
     </section>
 
-    <button class="refresh" @click="loadRates()">Refresh rates</button>
+    <button class="refresh" type="button" @click="board.load()">Refresh rates</button>
+
+    <AlertForm />
+    <AlertList :alerts="board.alerts" :loaded="board.alertsLoaded" @remove="board.remove" />
   </main>
 </template>
 
@@ -154,5 +133,21 @@ h1 {
 
 .refresh:hover {
   background: #1d4377;
+}
+
+.trigger-banner {
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border: 1px solid #f1aaa5;
+  border-radius: 8px;
+  background: #fde8e7;
+  color: #b42318;
+  font-weight: 600;
+}
+
+.error-message {
+  margin: 0 0 16px;
+  color: #b42318;
+  font-size: 0.9rem;
 }
 </style>
