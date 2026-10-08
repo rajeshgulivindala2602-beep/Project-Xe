@@ -36,6 +36,28 @@ class InMemoryAlertRepositoryTest {
     }
 
     @Test
+    void updateReplacesExistingAlert() {
+        UUID id = UUID.randomUUID();
+        Alert original = alert(id, "2025-01-01T00:00:00Z");
+        Alert updated = original.triggeredAt(Instant.parse("2025-01-02T00:00:00Z"));
+        repository.save(original);
+
+        assertThat(repository.update(updated)).isTrue();
+        assertThat(repository.findAll()).containsExactly(updated);
+    }
+
+    @Test
+    void updateDoesNotResurrectDeletedAlert() {
+        UUID id = UUID.randomUUID();
+        Alert alert = alert(id, "2025-01-01T00:00:00Z");
+        repository.save(alert);
+        repository.deleteById(id);
+
+        assertThat(repository.update(alert.triggeredAt(Instant.parse("2025-01-02T00:00:00Z")))).isFalse();
+        assertThat(repository.findAll()).isEmpty();
+    }
+
+    @Test
     void deleteReturnsWhetherAlertExisted() {
         UUID id = UUID.randomUUID();
         repository.save(alert(id, "2025-01-01T00:00:00Z"));

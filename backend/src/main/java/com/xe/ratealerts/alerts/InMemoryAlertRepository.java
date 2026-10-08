@@ -19,6 +19,11 @@ public class InMemoryAlertRepository implements AlertRepository {
     }
 
     @Override
+    public boolean update(Alert alert) {
+        return alerts.replace(alert.id(), alert) != null;
+    }
+
+    @Override
     public List<Alert> findAll() {
         return alerts.values().stream()
                 .sorted(Comparator.comparing(Alert::createdAt).thenComparing(Alert::id))
